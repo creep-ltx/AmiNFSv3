@@ -44,7 +44,7 @@ struct Library *SocketBase;
 LONG handler_main(void);
 
 static const char verstag[] __attribute__((used)) =
-    "$VER: nfs-handler 0.1b21 (14.8.2026)";
+    "$VER: nfs-handler 0.1 (14.8.2026)";
 
 /* ------------------------------------------------------------------ */
 /* mini libc (we link with -nostdlib; gcc also emits calls to these)  */
