@@ -20,9 +20,12 @@
     developed against the Emu68 lwIP stack; reports from other
     stacks are welcome.
   - An NFSv3 server. A stock Linux kernel nfsd works as-is, and so
-    does a Synology NAS. NFSv2-only servers are not supported (and
-    modern Linux cannot serve v2 anyway - that is why this handler
-    exists).
+    does a Synology NAS. NFSv2-only servers are not supported -
+    modern Linux cannot serve v2 anyway, which is what stranded the
+    classic ch_nfsc-lineage clients and prompted this handler.
+    (Stefan Franke's nfs3 on Aminet is a v3 mount utility;
+    AmiNFSv3 is a full DOSDriver filesystem with mount options,
+    automount and a clean dismount.)
   - About 130 KB of memory per mounted device at default settings
     (handler code plus transfer buffers; the buffers follow the
     RSIZE/WSIZE options).

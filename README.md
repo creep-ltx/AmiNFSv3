@@ -8,12 +8,15 @@ through `bsdsocket.library` on the other. Drop the DOSDriver icon in
 from the CLI; `NFSDismount` stops a handler cleanly and the next
 access remounts it fresh.
 
-Why write a new one: every existing Amiga NFS client descends from
+Why write a new one: the classic Amiga NFS clients descend from
 `ch_nfsc` (1994) — NFSv2 over UDP — and modern Linux kernels have
 **removed NFSv2 serving entirely** (no `CONFIG_NFSD_V2`, and
-nfs-utils disables UDP). A v2 client has no server left to talk to.
-AmiNFSv3 speaks v3 over TCP against a stock kernel `nfsd`, and against
-a Synology NAS unchanged.
+nfs-utils disables UDP), so that lineage has no server left to talk
+to. Stefan Franke's `nfs3` mount utility (Aminet, 2022) speaks v3;
+AmiNFSv3 approaches the job as a full DOSDriver filesystem — boot
+automount, volume names, mount options, a clean dismount — with
+verified write semantics and pipelined transfers, against a stock
+kernel `nfsd` or a Synology NAS unchanged.
 
 Repo: <https://github.com/creep-ltx/AmiNFSv3> (canonical home).
 
