@@ -8,10 +8,11 @@ WHAT IT IS
   A mounted filesystem handler speaking NFSv3 over TCP. A directory
   exported by a Linux machine or a NAS becomes an ordinary Amiga
   volume: Workbench icon, device and volume name, and every program
-  simply uses it as a disk. Existing Amiga NFS clients speak NFSv2
-  over UDP, which modern Linux servers no longer offer at all -
-  AmiNFSv3 talks to a current kernel nfsd and to a Synology NAS
-  out of the box.
+  simply uses it as a disk. The classic Amiga NFS clients speak
+  NFSv2 over UDP, which modern Linux servers no longer offer at
+  all; Stefan Franke's nfs3 mount utility speaks v3. AmiNFSv3 is a
+  full DOSDriver filesystem, and talks to a current kernel nfsd and
+  to a Synology NAS out of the box.
 
 
 FEATURES
