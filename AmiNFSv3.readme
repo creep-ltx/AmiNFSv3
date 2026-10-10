@@ -27,8 +27,11 @@ FEATURES
     remounts it fresh (replacing the handler binary needs no
     reboot)
 
+  - Filenames converted between Amiga Latin-1 and the server's
+    UTF-8, so accented names are right on both sides
+
   - Mount options for the volume name, identity (UID/GID), local
-    time zone, transfer sizes, and request pipelining - the
+    time zone, filename charset, transfer sizes, and request pipelining - the
     defaults are safe on any machine from a plain 68000 up, the
     options let a fast setup stretch its legs
 

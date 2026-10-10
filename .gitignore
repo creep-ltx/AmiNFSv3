@@ -2,3 +2,5 @@ nfs-handler
 NFSDismount
 *.o
 *.info
+tests/charset_extract.h
+tests/charset_test

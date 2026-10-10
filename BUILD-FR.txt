@@ -1,0 +1,23 @@
+AmiNFSv3 0.2 - build rapide
+===========================
+
+Pre-requis : m68k-amigaos-gcc (Bebbo ou ApolloCrossDev). Le Makefile
+le cherche dans l'ordre : PATH, ~/opt/amiga/bin, puis
+~/ApolloCrossDev/Compilers/GCC-6.50-Dev/bin. Sinon :
+
+    make CC=/chemin/vers/m68k-amigaos-gcc
+
+Etapes :
+
+    make check     # test natif des convertisseurs Latin-1/UTF-8 (gcc hote)
+    make           # produit nfs-handler et NFSDismount
+
+Installation sur l'Amiga :
+
+    copy nfs-handler L:
+    copy NFSDismount C:
+    NFSDismount NFS0:      ; puis un acces a NFS0: recharge le nouveau L:nfs-handler
+
+Nouveaute 0.2 : les noms de fichiers sont convertis Latin-1 <-> UTF-8
+(option Startup CHARSET=UTF8 par defaut, CHARSET=RAW pour l'ancien
+comportement). Voir AmiNFSv3.doc section 3.

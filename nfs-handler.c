@@ -44,7 +44,7 @@ struct Library *SocketBase;
 LONG handler_main(void);
 
 static const char verstag[] __attribute__((used)) =
-    "$VER: nfs-handler 0.1 (14.8.2026)";
+    "$VER: nfs-handler 0.2 (10.10.2026)";
 
 /* ------------------------------------------------------------------ */
 /* mini libc (we link with -nostdlib; gcc also emits calls to these)  */
@@ -98,14 +98,75 @@ static ULONG udivmod(ULONG n, ULONG d, ULONG *rem)
     return q;
 }
 
-static char lower(char c) { return (c >= 'A' && c <= 'Z') ? c + 32 : c; }
+/* ASCII plus the ISO-8859-1 letters: A-Z and 0xC0..0xDE (except the
+ * multiplication sign 0xD7) fold by +32, which is what AmigaOS's own
+ * utility.library ToLower() does for the Latin-1 range. */
+static UBYTE lower(UBYTE c)
+{
+    if (c >= 'A' && c <= 'Z') return c + 32;
+    if (c >= 0xC0 && c <= 0xDE && c != 0xD7) return c + 32;
+    return c;
+}
+
+/* ------------------------------------------------------------------ */
+/* Character set. AmigaDOS names are ISO-8859-1 (Latin-1); the server  */
+/* side is in practice UTF-8 (Linux, TrueNAS, Synology all store names */
+/* as UTF-8 and WinUAE/host tools show them that way). Convert at the  */
+/* wire boundary only: everything above this layer stays Latin-1.      */
+/* CHARSET=RAW on the Startup line disables the conversion.            */
+
+static LONG g_utf8 = 1;
+
+/* Latin-1 -> UTF-8. out must hold 2*inlen+1 bytes. Returns byte count. */
+static LONG latin1_to_utf8(const char *in, char *out)
+{
+    LONG o = 0;
+    for (; *in; in++) {
+        UBYTE c = (UBYTE)*in;
+        if (c < 0x80) out[o++] = c;
+        else { out[o++] = 0xC0 | (c >> 6); out[o++] = 0x80 | (c & 0x3F); }
+    }
+    out[o] = 0;
+    return o;
+}
+
+/* UTF-8 -> Latin-1, at most outmax chars (plus NUL). Code points
+ * outside Latin-1 become '?' so the entry stays listable and
+ * deletable; invalid sequences pass through byte-wise. Returns the
+ * length, or -1 if the name does not fit. */
+static LONG utf8_to_latin1(const UBYTE *in, ULONG inlen, char *out, LONG outmax)
+{
+    ULONG i = 0; LONG o = 0;
+    while (i < inlen) {
+        UBYTE c = in[i];
+        ULONG cp; LONG extra;
+        if (c < 0x80)                 { cp = c;        extra = 0; }
+        else if ((c & 0xE0) == 0xC0)  { cp = c & 0x1F; extra = 1; }
+        else if ((c & 0xF0) == 0xE0)  { cp = c & 0x0F; extra = 2; }
+        else if ((c & 0xF8) == 0xF0)  { cp = c & 0x07; extra = 3; }
+        else                          { cp = c;        extra = 0; }   /* stray byte */
+        if (extra && i + extra >= inlen) { cp = c; extra = 0; }   /* truncated sequence */
+        if (extra) {
+            LONG k, ok = 1;
+            for (k = 1; k <= extra; k++)
+                if ((in[i + k] & 0xC0) != 0x80) { ok = 0; break; }
+            if (ok) for (k = 1; k <= extra; k++) cp = (cp << 6) | (in[i + k] & 0x3F);
+            else { cp = c; extra = 0; }
+        }
+        i += 1 + extra;
+        if (o >= outmax) return -1;
+        out[o++] = (cp <= 0xFF) ? (char)cp : '?';
+    }
+    out[o] = 0;
+    return o;
+}
 
 static LONG names_equal_nocase(const char *a, LONG alen, const char *b, LONG blen)
 {
     LONG i;
     if (alen != blen) return 0;
     for (i = 0; i < alen; i++)
-        if (lower(a[i]) != lower(b[i])) return 0;
+        if (lower((UBYTE)a[i]) != lower((UBYTE)b[i])) return 0;
     return 1;
 }
 
@@ -298,6 +359,14 @@ static void pk_opaque(const UBYTE *d, ULONG n)
 }
 
 static void pk_str(const char *s) { pk_opaque((const UBYTE *)s, c_strlen(s)); }
+
+/* a filename from the Amiga side: Latin-1 in, UTF-8 on the wire */
+static void pk_name(const char *s)
+{
+    char buf[2 * NAME_MAX_AMIGA + 2];
+    if (g_utf8) pk_opaque((const UBYTE *)buf, latin1_to_utf8(s, buf));
+    else pk_str(s);
+}
 
 struct UB { UBYTE *p, *end; LONG err; };
 
@@ -632,7 +701,7 @@ static LONG nfs_call(ULONG proc, const struct NfsArgs *na, struct UB *u,
         rpc_begin(NFS_PROG, NFS_VERS, proc);
         pk_opaque(na->fh, na->fhlen);
         if (proc == NFS3_LOOKUP) {
-            pk_str(na->name);
+            pk_name(na->name);
         } else if (proc == NFS3_READ) {
             pk_u64(0, na->a); pk_u32(na->b);
         } else if (proc == NFS3_READDIRPLUS) {
@@ -655,18 +724,18 @@ static LONG nfs_call(ULONG proc, const struct NfsArgs *na, struct UB *u,
             pk_u64(0, 0);              /* offset 0, count 0 = whole file */
             pk_u32(0);
         } else if (proc == NFS3_CREATE) {
-            pk_str(na->name);
+            pk_name(na->name);
             pk_u32(0);                 /* UNCHECKED */
             pk_sattr(na);
         } else if (proc == NFS3_MKDIR) {
-            pk_str(na->name);
+            pk_name(na->name);
             pk_sattr(na);
         } else if (proc == NFS3_REMOVE || proc == NFS3_RMDIR) {
-            pk_str(na->name);
+            pk_name(na->name);
         } else if (proc == NFS3_RENAME) {
-            pk_str(na->name);
+            pk_name(na->name);
             pk_opaque(na->fh2, na->fh2len);
-            pk_str(na->name2);
+            pk_name(na->name2);
         }
         if (rpc_finish(g_sock, u)) return 0;
         DBG("transport error, reconnecting");
@@ -763,7 +832,7 @@ static LONG nfs_readdir(const UBYTE *dirfh, ULONG dirfhlen,
             if (!nm) continue;
             if (namelen == 1 && nm[0] == '.') continue;
             if (namelen == 2 && nm[0] == '.' && nm[1] == '.') continue;
-            if (namelen > NAME_MAX_AMIGA) continue;   /* unreachable name; skip */
+            if (!g_utf8 && namelen > NAME_MAX_AMIGA) continue;   /* unreachable name; skip */
             if (efhlen > FHSIZE_MAX) { efh = NULL; efhlen = 0; }
 
             if (!tail || tail->used == DIRCHUNK_N) {
@@ -773,10 +842,17 @@ static LONG nfs_readdir(const UBYTE *dirfh, ULONG dirfhlen,
                 tail = nc;
             }
             {
-                struct DirEnt *e = &tail->e[tail->used++];
-                memcpy(e->name, nm, namelen);
-                e->name[namelen] = 0;
-                e->namelen = namelen;
+                struct DirEnt *e = &tail->e[tail->used];
+                if (g_utf8) {
+                    LONG n = utf8_to_latin1(nm, namelen, e->name, NAME_MAX_AMIGA);
+                    if (n < 0) continue;          /* unreachable name; skip */
+                    e->namelen = n;
+                } else {
+                    memcpy(e->name, nm, namelen);
+                    e->name[namelen] = 0;
+                    e->namelen = namelen;
+                }
+                tail->used++;
                 if (have_attr) {
                     e->fileid = ea.fileid; e->size = ea.size;
                     e->mode = ea.mode; e->ftype = ea.ftype; e->mtime = ea.mtime;
@@ -2039,6 +2115,10 @@ static void parse_startup(void)
                 g_testshort = tok[10] - '0';
             } else if (t > 9 && !c_memcmp(tok, "TESTDROP=", 9)) {
                 g_testdrop = tok[9] - '0';
+            } else if (t > 8 && !c_memcmp(tok, "CHARSET=", 8)) {
+                if (!c_memcmp(tok + 8, "RAW", 3)) g_utf8 = 0;
+                else if (!c_memcmp(tok + 8, "UTF8", 4)) g_utf8 = 1;
+                else { kput("AmiNFSv3: unknown CHARSET "); kput(tok + 8); kputc('\n'); }
             } else if (t > 3 && !c_memcmp(tok, "TZ=", 3)) {
                 LONG k = 3, neg = 0, h = 0, m = 0;
                 if (tok[k] == '-') { neg = 1; k++; }
@@ -2085,7 +2165,7 @@ LONG handler_main(void)
     g_volnode = NULL; g_locks = NULL; g_files = NULL;
     g_nlocks = g_nfiles = 0; g_dying = 0;
     g_sock = -1; g_have_root = 0; g_rootfhlen = 0; g_xid = 100;
-    g_uid = 1000; g_gid = 1000; g_volset = 0; g_tzoff = 0;
+    g_uid = 1000; g_gid = 1000; g_volset = 0; g_tzoff = 0; g_utf8 = 1;
     g_rsize = RSIZE_DEFAULT; g_wsize = WSIZE_DEFAULT;
     g_depth = 1; g_testshort = 0; g_testdrop = 0;
     g_req = g_rep = NULL;

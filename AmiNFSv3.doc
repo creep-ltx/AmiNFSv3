@@ -1,4 +1,4 @@
-                    AmiNFSv3 0.1 - documentation
+                    AmiNFSv3 0.2 - documentation
                     ============================
 
   An NFSv3 client filesystem for AmigaOS 2.0+. Mounts a directory
@@ -93,6 +93,17 @@
                  (the buffers are sized from these) and can help
                  fast setups; see section 7 before turning them up.
 
+  CHARSET=UTF8   How filenames are encoded on the server. Amiga
+  CHARSET=RAW    names are ISO-8859-1 (Latin-1); Linux, TrueNAS and
+                 Synology store names as UTF-8. The default, UTF8,
+                 converts both ways at the wire, so 'Ete.info' with
+                 accents reads and writes correctly from both sides.
+                 Characters that do not exist in Latin-1 (euro sign,
+                 emoji, CJK) show as '?' and cannot be opened from
+                 the Amiga. RAW passes bytes through unchanged, for
+                 a server that really stores Latin-1 or to reach
+                 names written by older AmiNFSv3 versions.
+
   DEPTH=1..8     Write/read pipelining: how many NFS requests the
                  handler keeps in flight during large transfers.
                  The default 1 is the plain synchronous handler -
@@ -176,11 +187,11 @@
   with; changed options in the DOSDriver file take effect at the
   next fresh Mount (after a reboot, if the device already exists).
 
-  Filenames pass through byte-for-byte (Amiga Latin-1 on one side,
-  usually UTF-8 on the other: ASCII names are always fine, accented
-  characters will differ in look between the two worlds). Lookups
-  are case-insensitive the Amiga way even though the server is
-  case-sensitive: if exactly one entry matches regardless of case,
+  Filenames are converted between the Amiga's Latin-1 and the
+  server's UTF-8 (see CHARSET= in section 3): accented names look
+  the same from both worlds. Lookups are case-insensitive the Amiga
+  way even though the server is case-sensitive - accented letters
+  included - and if exactly one entry matches regardless of case,
   it is used.
 
 
@@ -262,6 +273,11 @@
 
   10. HISTORY
   -----------
+
+  0.2  Filenames converted between Latin-1 and UTF-8 (CHARSET=
+       option, default UTF8); case-insensitive lookups now fold
+       Latin-1 accented letters too. Makefile finds the toolchain
+       on PATH or in the ApolloCrossDev tree.
 
   0.1  First release. NFSv3 over TCP; read and write; UNSTABLE
        writes with COMMIT-on-close and verifier tracking; VOLUME,

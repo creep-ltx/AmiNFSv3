@@ -16,6 +16,9 @@ Startup    = "192.168.68.117:/home/creep/Amiga VOLUME=moodbox TZ=+2 RSIZE=65536 
  *          RSIZE=n WSIZE=n  transfer chunk bytes, 4096..131072
  *                       (defaults 131072/65536; small-memory machines
  *                       can shrink; Emu68 lwIP: keep WSIZE <= 65536)
+ *          CHARSET=UTF8|RAW  filename encoding on the server
+ *                       (default UTF8: Amiga Latin-1 names are
+ *                       converted both ways; RAW passes bytes through)
  *          DEPTH=1..4   write pipelining. 1 (default) = one WRITE at a
  *                       time, always safe. 2+ keeps that many RPCs in
  *                       flight - measured best on Emu68 lwIP with
