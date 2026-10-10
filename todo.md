@@ -256,8 +256,8 @@ The numbers (final b19, RSIZE=64K WSIZE=16K DEPTH=8):
 - Handler main loop: WaitSelect on socket + packet-port signal bit in
   one call (proven primitive, see AmigaReferences
   network-daemon-and-patching.md). Confirm no starvation pattern.
-- Filename charset: Latin-1 (Amiga) vs UTF-8 (Linux) — decide policy
-  for non-ASCII names (pass-through first, revisit).
+- ~~Filename charset~~ — settled in 0.2b2: convert Latin-1 <-> UTF-8
+  at the wire (CHARSET=UTF8 default, RAW = old pass-through).
 - Amiga-side stack on the A1200 is lwIP bsdsocket (Emu68). Check
   lwIP's WaitSelect fidelity early — it's the one primitive we can't
   do without.
@@ -295,3 +295,20 @@ L:nfs-handler-0.1b20.bak), devices touched (List NFS0:/NFS1:) -> volumes
 back. Then in his CTerm: Ahiru walked moodbox:BBS/BBS Style/artcore!/
 amiga and opened 001..TXT; NAS:Pictures/Wallpapers/Tech named right.
 Released 0.2b1: GitHub pre-release v0.2b1 and Aminet (AmiNFSv3.lha + .readme uploaded to new/, 14.10.2026).
+
+## 0.2b2 (14.10.2026): accented filenames (contributed)
+
+Renaud Schweingruber (github.com/TuKo1982) forked the repo on
+10.10.2026 and wrote the Latin-1 <-> UTF-8 conversion on branch
+charset-latin1-utf8 (03acf73); his Aminet nfs-handler
+(comm/net/nfs-handler_rs, filesysbox-based) uses our NFS client layer.
+Cherry-picked with his authorship. Changed on the way in: $VER 0.2b2;
+Makefile CC search only when CC is make's default (`CC ?=` never fired,
+make predefines CC=cc); his French BUILD-FR.txt left out (the .doc
+covers it); `make check` runs his native converter test.
+Verified on the A1200 against this PC's export: å ä ö names list,
+Type, create (Echo >), MakeDir, Rename into a new drawer, Delete via a
+lower-case name (ärlig -> Ärlig), RÄKSMÖRGÅS.TXT finds Räksmörgås.txt;
+the € in a server name lists as '?'. NFS1: (Synology) still lists.
+Server side shows proper UTF-8. Installed as L:nfs-handler
+(L:nfs-handler-0.2b1.bak kept).

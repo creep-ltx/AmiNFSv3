@@ -27,8 +27,11 @@ FEATURES
     remounts it fresh (replacing the handler binary needs no
     reboot)
 
+  - Filenames converted between Amiga Latin-1 and the server's
+    UTF-8, so accented names are right on both sides
+
   - Mount options for the volume name, identity (UID/GID), local
-    time zone, transfer sizes, and request pipelining - the
+    time zone, filename charset, transfer sizes, and request pipelining - the
     defaults are safe on any machine from a plain 68000 up, the
     options let a fast setup stretch its legs
 
@@ -57,6 +60,10 @@ SOURCE
 
 HISTORY
 
+  0.2b2  Accented filenames look right on both sides: names are
+         converted between the Amiga's Latin-1 and the server's
+         UTF-8 (CHARSET= option). Contributed by Renaud
+         Schweingruber (github.com/TuKo1982).
   0.2b1  Fixed: a few drawers deep, programs showed paths like
          moodbox:?/BBS Style and then could not read them (every
          drawer above the last was named "?"). The parent of a file

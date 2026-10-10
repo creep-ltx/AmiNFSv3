@@ -3,7 +3,18 @@
 # comment atop nfs-handler.c). -fno-toplevel-reorder keeps aminfs_entry
 # first in the text hunk, which is what makes it the entry point.
 
-CC      = $(HOME)/opt/amiga/bin/m68k-amigaos-gcc
+# Toolchain: m68k-amigaos-gcc on PATH, else Bebbo's default location,
+# else ApolloCrossDev's. Override with  make CC=/path/to/gcc
+ifeq ($(origin CC),default)
+  CC := $(shell command -v m68k-amigaos-gcc 2>/dev/null)
+  ifeq ($(CC),)
+    ifneq ($(wildcard $(HOME)/opt/amiga/bin/m68k-amigaos-gcc),)
+      CC := $(HOME)/opt/amiga/bin/m68k-amigaos-gcc
+    else
+      CC := $(HOME)/ApolloCrossDev/Compilers/GCC-6.50-Dev/bin/m68k-amigaos-gcc
+    endif
+  endif
+endif
 # -fbbb=-: Bebbo's own optimizer pass off. With it, 0.2b1's name_dir
 # (inlined into the packet loop) never copied the name it had found -
 # seen on the A1200, gone with the pass off (as in every program of the
@@ -27,7 +38,11 @@ NFSDismount: NFSDismount.c
 test:
 	python3 tests/nfswire.py selftest 192.168.68.117 /home/creep/nfs-share
 
-clean:
-	rm -f nfs-handler NFSDismount
+# Native unit test of the charset converters (no Amiga toolchain needed).
+check:
+	sh tests/extract_charset.sh && gcc -Wall -Wextra -Wno-unused-variable -O2 -o tests/charset_test tests/charset_test.c && ./tests/charset_test
 
-.PHONY: all test clean
+clean:
+	rm -f nfs-handler NFSDismount *.o tests/charset_test
+
+.PHONY: all test check clean
