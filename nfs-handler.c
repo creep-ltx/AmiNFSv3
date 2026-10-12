@@ -249,7 +249,7 @@ static struct CFile      *g_files;
 static LONG   g_nlocks, g_nfiles;
 static LONG   g_dying;
 
-static char   g_host[64];              /* dotted quad from Startup */
+static char   g_host[64];              /* host (name or dotted quad) */
 static char   g_export[192];
 static char   g_volname[32];
 static ULONG  g_uid, g_gid;            /* AUTH_UNIX identity (UID=/GID=) */
@@ -525,6 +525,21 @@ static LONG parse_ip(const char *s, ULONG *out)
     return 1;
 }
 
+/* Numeric first (no resolver traffic), else the stack's name service
+ * (hosts file / DNS via bsdsocket.library). Result is network byte
+ * order, ready for sin_addr.s_addr. */
+static LONG resolve_host(ULONG *out)
+{
+    struct hostent *he;
+
+    if (parse_ip(g_host, out)) return 1;
+    he = gethostbyname(g_host);
+    if (!he || he->h_addrtype != AF_INET || he->h_length != 4 || !he->h_addr)
+        return 0;
+    memcpy(out, he->h_addr, 4);
+    return 1;
+}
+
 static void drop_conn(void)
 {
     if (g_sock >= 0 && SocketBase) CloseSocket(g_sock);
@@ -534,8 +549,6 @@ static void drop_conn(void)
 /* 0 = ok, else an AmigaDOS error code */
 static LONG net_up(void)
 {
-    ULONG ip;
-
     if (!SocketBase) {
         SocketBase = OpenLibrary("bsdsocket.library", 4);
         if (!SocketBase) {
@@ -544,15 +557,16 @@ static LONG net_up(void)
         }
         DBG("bsdsocket open");
     }
-    if (!parse_ip(g_host, &ip)) {
-        DBG("bad host in Startup (need dotted quad)");
-        return ERROR_BAD_STREAM_NAME;
-    }
 
     if (!g_have_root) {
         struct UB u;
         LONG s;
-        ULONG port;
+        ULONG port, ip;
+
+        if (!resolve_host(&ip)) {
+            DBG("cannot resolve host in Startup");
+            return ERROR_BAD_STREAM_NAME;
+        }
 
         s = tcp_connect(ip, PMAP_PORT);
         if (s < 0) return ERROR_DEVICE_NOT_MOUNTED;
@@ -588,6 +602,11 @@ static LONG net_up(void)
     }
 
     if (g_sock < 0) {
+        ULONG ip;
+        if (!resolve_host(&ip)) {
+            DBG("cannot resolve host in Startup");
+            return ERROR_BAD_STREAM_NAME;
+        }
         g_sock = tcp_connect(ip, NFS_PORT);
         if (g_sock < 0) return ERROR_DEVICE_NOT_MOUNTED;
         DBG("nfsd connected");
