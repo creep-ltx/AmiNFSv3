@@ -71,7 +71,8 @@
 
   Startup is `host:/export/path`, optionally followed by options,
   all inside one pair of quotes. The host is a dotted-quad address
-  (name resolution is on the wish list). Options:
+  or a hostname/FQDN, resolved through the running TCP stack (hosts
+  file or DNS). Options:
 
   VOLUME=name    The volume name - what Workbench shows and what
                  `name:` resolves to. Default: the last component
@@ -237,7 +238,9 @@
     error rather than quietly dropping the comment).
   - Timestamps are stored in UTC on the server; use TZ=.
   - Symbolic and hard links on the server are not followed.
-  - The host must currently be a dotted-quad address.
+  - The host may be a dotted-quad address or a hostname/FQDN; names
+    are resolved via the TCP stack's resolver when a connection is
+    (re)established.
   - A server that goes away mid-operation costs a timeout (about
     ten seconds) and the operation fails with an error; the next
     access reconnects. A handler survives server reboots.

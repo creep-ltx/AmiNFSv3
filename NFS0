@@ -1,14 +1,17 @@
 /* NFS0 - mount a Linux NFSv3 export via nfs-handler.
  * Drop in DEVS:DOSDrivers (with an icon) for automount, or keep in
  * SYS:Storage/DOSDrivers and 'Mount NFS0:' by hand.
- * Startup is "host:/export/path"; host is a dotted quad for now. */
+ * Startup is "host:/export/path"; host is a dotted quad or a
+ * hostname (FQDN) resolved by the TCP stack. */
 Handler    = L:nfs-handler
 StackSize  = 16384
 Priority   = 5
 GlobVec    = -1
 Startup    = "192.168.68.117:/home/creep/Amiga VOLUME=moodbox TZ=+2 RSIZE=65536 WSIZE=16384 DEPTH=8"
 
-/* Startup is "host:/export/path [options]"; host is a dotted quad.
+/* Startup is "host:/export/path [options]"; host is a dotted quad or
+ * a hostname (FQDN), resolved through the running TCP stack (hosts
+ * file / DNS).
  * Options: VOLUME=name  Workbench/volume name (default: export leaf)
  *          UID=n GID=n  AUTH_UNIX identity (default 1000/1000)
  *          TZ=[+|-]H[:MM]  hours east of UTC for displayed dates
