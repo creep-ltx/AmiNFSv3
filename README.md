@@ -20,7 +20,7 @@ kernel `nfsd` or a Synology NAS unchanged.
 
 Repo: <https://github.com/creep-ltx/AmiNFSv3> (canonical home).
 
-**Status: 0.1 (pre-release).** Every build boot-verified on real
+**Status: 0.2b1 (pre-release).** Every build boot-verified on real
 hardware (A1200 + PiStorm/Emu68) against Linux kernel nfsd and
 Synology DSM; every transfer in the log below byte-compared on the
 server side, most of them minimum-of-3 with the fault injectors on.
