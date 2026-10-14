@@ -289,5 +289,8 @@ TOOLCHAIN TRAP: the first build never copied the found name - only when
 name_dir was inlined into the packet loop; -fbbb=- (Bebbo's own pass
 off) fixed it, as for the terminal family. Now in CFLAGS. 68000-clean
 re-checked (no 020 opcodes in the disassembly).
-Not installed yet: L:nfs-handler is still 0.1b20 (needs NFSDismount
-NFS0:/NFS1: with no program inside them).
+INSTALLED on the A1200 the same day (he allowed it): Ahiru quit,
+NFSDismount NFS9:/NFS0:/NFS1:, L:nfs-handler replaced (0.1b20 kept as
+L:nfs-handler-0.1b20.bak), devices touched (List NFS0:/NFS1:) -> volumes
+back. Then in his CTerm: Ahiru walked moodbox:BBS/BBS Style/artcore!/
+amiga and opened 001..TXT; NAS:Pictures/Wallpapers/Tech named right.
