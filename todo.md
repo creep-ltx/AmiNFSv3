@@ -294,3 +294,4 @@ NFSDismount NFS9:/NFS0:/NFS1:, L:nfs-handler replaced (0.1b20 kept as
 L:nfs-handler-0.1b20.bak), devices touched (List NFS0:/NFS1:) -> volumes
 back. Then in his CTerm: Ahiru walked moodbox:BBS/BBS Style/artcore!/
 amiga and opened 001..TXT; NAS:Pictures/Wallpapers/Tech named right.
+Released 0.2b1: GitHub pre-release v0.2b1 and Aminet (AmiNFSv3.lha + .readme uploaded to new/, 14.10.2026).
