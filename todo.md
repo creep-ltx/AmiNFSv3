@@ -312,3 +312,4 @@ lower-case name (ärlig -> Ärlig), RÄKSMÖRGÅS.TXT finds Räksmörgås.txt;
 the € in a server name lists as '?'. NFS1: (Synology) still lists.
 Server side shows proper UTF-8. Installed as L:nfs-handler
 (L:nfs-handler-0.2b1.bak kept).
+Released 0.2b2: GitHub pre-release v0.2b2 (AmiNFSv3.lha packed with LhA 2.15 on the A1200, staging + notes in ~/Documents/Releases/AmiNFSv3/0.2b2), 14.10.2026. Not on Aminet yet.
