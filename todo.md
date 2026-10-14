@@ -263,3 +263,31 @@ The numbers (final b19, RSIZE=64K WSIZE=16K DEPTH=8):
   do without.
 - Volume name / device name: NFS0: device, volume from export string
   or a NAME= tooltype/mount option.
+
+## 0.2b1 (14.10.2026): drawers above the last read "?" - fixed
+
+Reported by him from Ahiru on moodbox: and NAS:: a few drawers deep,
+"cannot read" under a path `moodbox:?/BBS Style`. Cause, proven with a
+probe (Lock, NameFromLock, ParentDir+Examine on each level):
+- ACTION_PARENT made its lock from LOOKUP "..", which gives a handle and
+  no name; EXAMINE then said "?". NameFromLock builds every path from
+  ParentDir+Examine, so every drawer above the last read "?" in every
+  program (Ahiru, csh's pwd, ASL...). 0.1's oldest bug, unseen until a
+  program re-opened a path NameFromLock had built.
+- the parent of a FILE lock punted to the root (so NameFromLock of a
+  file 3 deep read "moodbox:file").
+- LOCATE named a lock from the typed text's leaf: "a/b/" or "/" named
+  it "" ("?") too.
+Fix: a lock keeps the drawer it was found in (pfh); resolve() names a
+lock by what it resolved (server case); a drawer reached by "..", with
+no name, is named on EXAMINE by its file id in its parent's listing
+(LOOKUP ".." + READDIRPLUS, only when asked). Verified on the A1200 as
+NFS9: (RAM:-staged, VOLUME=nfstest): names right at every depth, file
+parents right, 22.8 MB read+write md5-identical, rename into a deep
+drawer, Delete ALL; read speed unchanged (11-12 MB/s both builds).
+TOOLCHAIN TRAP: the first build never copied the found name - only when
+name_dir was inlined into the packet loop; -fbbb=- (Bebbo's own pass
+off) fixed it, as for the terminal family. Now in CFLAGS. 68000-clean
+re-checked (no 020 opcodes in the disassembly).
+Not installed yet: L:nfs-handler is still 0.1b20 (needs NFSDismount
+NFS0:/NFS1: with no program inside them).

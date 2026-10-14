@@ -4,7 +4,11 @@
 # first in the text hunk, which is what makes it the entry point.
 
 CC      = $(HOME)/opt/amiga/bin/m68k-amigaos-gcc
-CFLAGS  = -O2 -noixemul -fomit-frame-pointer \
+# -fbbb=-: Bebbo's own optimizer pass off. With it, 0.2b1's name_dir
+# (inlined into the packet loop) never copied the name it had found -
+# seen on the A1200, gone with the pass off (as in every program of the
+# terminal family: Knowledge/amiga/toolchain-and-testing.md).
+CFLAGS  = -O2 -noixemul -fomit-frame-pointer -fbbb=- \
           -Wall -Wno-pointer-sign -nostartfiles -nostdlib
 LIBGCC  = $(shell $(CC) -noixemul -print-libgcc-file-name)
 

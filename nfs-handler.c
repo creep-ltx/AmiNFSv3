@@ -44,7 +44,7 @@ struct Library *SocketBase;
 LONG handler_main(void);
 
 static const char verstag[] __attribute__((used)) =
-    "$VER: nfs-handler 0.1 (14.8.2026)";
+    "$VER: nfs-handler 0.2b1 (14.10.2026)";
 
 /* ------------------------------------------------------------------ */
 /* mini libc (we link with -nostdlib; gcc also emits calls to these)  */
@@ -221,7 +221,9 @@ struct CLock {
     ULONG  ftype;                      /* NF3REG / NF3DIR */
     struct DirChunk *dc;               /* EXAMINE_NEXT snapshot */
     LONG   dctotal;
-    char   name[NAME_MAX_AMIGA + 1];   /* leaf name, for EXAMINE */
+    char   name[NAME_MAX_AMIGA + 1];   /* leaf name, for EXAMINE ("" = not known yet: name_dir) */
+    ULONG  pfhlen;                     /* the drawer it was found in (0 = not known): */
+    UBYTE  pfh[FHSIZE_MAX];            /* ParentDir of a file needs it (no LOOKUP ".." on a file) */
 };
 
 struct CFile {
@@ -1366,6 +1368,12 @@ static void lock_fh(struct CLock *cl, const UBYTE **fh, ULONG *fhlen, ULONG *fty
  * final object; if wantparent, stops one short and returns the last
  * component in leaf[] instead (for LOOKUP of things we may later create).
  */
+/* what the last resolve() found the object as: its name ("" = reached by
+ * "/", not known) and the drawer it was looked up in (len 0 = not known) */
+static char  g_rname[NAME_MAX_AMIGA + 1];
+static UBYTE g_rpfh[FHSIZE_MAX];
+static ULONG g_rpfhlen;
+
 static LONG resolve(struct CLock *base, UBYTE *bstr,
                     UBYTE *outfh, ULONG *outfhlen, struct Attr *a,
                     LONG wantparent, char *leaf /* may be NULL */)
@@ -1392,6 +1400,11 @@ static LONG resolve(struct CLock *base, UBYTE *bstr,
     memcpy(curfh, fh, fhlen); curlen = fhlen;
     cura.ftype = ftype; cura.mode = 0755; cura.size = 0;
     cura.fileid = 0; cura.mtime = 0;
+    g_rname[0] = 0; g_rpfhlen = 0;
+    if (!from_root && base) {           /* "" from a lock: that lock's own */
+        memcpy(g_rname, base->name, sizeof g_rname);
+        if (base->pfhlen) { memcpy(g_rpfh, base->pfh, base->pfhlen); g_rpfhlen = base->pfhlen; }
+    }
 
     i = o; cl2 = 0;
     for (;;) {
@@ -1407,6 +1420,7 @@ static LONG resolve(struct CLock *base, UBYTE *bstr,
                     err = nfs_lookup(curfh, curlen, "..", nfh, &nlen, &na2, NULL);
                     if (err) return err;
                     memcpy(curfh, nfh, nlen); curlen = nlen; cura = na2;
+                    g_rname[0] = 0; g_rpfhlen = 0;     /* named when asked (name_dir) */
                 }
             } else if (cl2 > 0) {
                 LONG is_last = (path[i] == 0);
@@ -1418,8 +1432,10 @@ static LONG resolve(struct CLock *base, UBYTE *bstr,
                     return 0;
                 }
                 if (cura.ftype != NF3DIR) return ERROR_DIR_NOT_FOUND;
-                err = nfs_lookup(curfh, curlen, comp, nfh, &nlen, &na2, NULL);
+                memcpy(g_rname, comp, cl2 + 1);       /* the server's case if it differs */
+                err = nfs_lookup(curfh, curlen, comp, nfh, &nlen, &na2, g_rname);
                 if (err) return err;
+                memcpy(g_rpfh, curfh, curlen); g_rpfhlen = curlen;
                 memcpy(curfh, nfh, nlen); curlen = nlen; cura = na2;
             }
             cl2 = 0;
@@ -1464,7 +1480,9 @@ static void act_locate(struct DosPacket *pkt)
     {
         struct CLock *cl = lock_new(fh, fhlen, a.ftype, a.fileid);
         if (!cl) { pkt->dp_Res1 = 0; pkt->dp_Res2 = ERROR_NO_FREE_STORE; return; }
-        leafname(BADDR(pkt->dp_Arg2), cl->name);
+        /* as resolved, not as typed: "a/b/" or "/" name what they reach */
+        memcpy(cl->name, g_rname, sizeof cl->name);
+        if (g_rpfhlen) { memcpy(cl->pfh, g_rpfh, g_rpfhlen); cl->pfhlen = g_rpfhlen; }
         pkt->dp_Res1 = MKBADDR(&cl->fl);
         pkt->dp_Res2 = 0;
     }
@@ -1486,7 +1504,10 @@ static void act_copy_dir(struct DosPacket *pkt)
     lock_fh(cl, &fh, &fhlen, &ftype);
     nc = lock_new(fh, fhlen, ftype, cl ? cl->fl.fl_Key : 0);
     if (!nc) { pkt->dp_Res1 = 0; pkt->dp_Res2 = ERROR_NO_FREE_STORE; return; }
-    if (cl) memcpy(nc->name, cl->name, sizeof(nc->name));
+    if (cl) {
+        memcpy(nc->name, cl->name, sizeof(nc->name));
+        memcpy(nc->pfh, cl->pfh, cl->pfhlen); nc->pfhlen = cl->pfhlen;
+    }
     pkt->dp_Res1 = MKBADDR(&nc->fl);
     pkt->dp_Res2 = 0;
 }
@@ -1506,11 +1527,15 @@ static void act_parent(struct DosPacket *pkt)
     if (!err) {
         const UBYTE *fh; ULONG fhlen, ftype;
         lock_fh(cl, &fh, &fhlen, &ftype);
-        if (ftype == NF3DIR) {
+        if (cl->pfhlen) {
+            /* the drawer it was found in: no LOOKUP of ".." needed */
+            memcpy(nfh, cl->pfh, cl->pfhlen); nlen = cl->pfhlen;
+            err = nfs_getattr(nfh, nlen, &a);
+        } else if (ftype == NF3DIR) {
             err = nfs_lookup(fh, fhlen, "..", nfh, &nlen, &a, NULL);
         } else {
-            /* parent of a file lock: we can't LOOKUP ".." on a file.
-             * b1 punts to the root; fine for List/Type usage patterns. */
+            /* a file lock whose drawer is not known: NFS has no ".." of
+             * a file; the root, as before (every lock from a path knows) */
             memcpy(nfh, g_rootfh, g_rootfhlen); nlen = g_rootfhlen;
             a.ftype = NF3DIR; a.fileid = 0;
             err = 0;
@@ -1523,6 +1548,35 @@ static void act_parent(struct DosPacket *pkt)
         pkt->dp_Res1 = MKBADDR(&nc->fl);
         pkt->dp_Res2 = 0;
     }
+}
+
+/* A drawer reached by ParentDir or "/" (LOOKUP of "..") has a handle but
+ * no name, and NameFromLock builds paths from Examine's names: found in
+ * its parent's listing by its file id. (Without it every drawer above the
+ * last read "?": moodbox:?/BBS Style, 0.1.) */
+static void name_dir(struct CLock *cl, ULONG fileid)
+{
+    UBYTE gfh[FHSIZE_MAX]; ULONG glen; struct Attr ga;
+    struct DirChunk *dc, *c;
+    LONG total, i;
+    if (cl->ftype != NF3DIR) return;
+    if (cl->pfhlen) { memcpy(gfh, cl->pfh, cl->pfhlen); glen = cl->pfhlen; }
+    else if (nfs_lookup(cl->fh, cl->fhlen, "..", gfh, &glen, &ga, NULL)) return;
+    if (nfs_readdir(gfh, glen, &dc, &total)) return;
+    {
+        /* (found first, then copied: the copy inside the search loop never
+         * happened in the -O2 build, seen on the A1200, cause not found) */
+        struct DirEnt *hit = NULL;
+        for (c = dc; c && !hit; c = c->next)
+            for (i = 0; i < c->used; i++)
+                if (c->e[i].fileid == fileid && c->e[i].ftype == NF3DIR) { hit = &c->e[i]; break; }
+        if (hit) {
+            LONG k;
+            for (k = 0; k <= hit->namelen && k <= NAME_MAX_AMIGA; k++) cl->name[k] = hit->name[k];
+            memcpy(cl->pfh, gfh, glen); cl->pfhlen = glen;
+        }
+    }
+    while (dc) { c = dc->next; FreeVec(dc); dc = c; }
 }
 
 static void act_examine(struct DosPacket *pkt)
@@ -1540,6 +1594,7 @@ static void act_examine(struct DosPacket *pkt)
     is_root = (fhlen == g_rootfhlen && !c_memcmp(fh, g_rootfh, fhlen));
     err = nfs_getattr(fh, fhlen, &a);
     if (err) { pkt->dp_Res1 = DOSFALSE; pkt->dp_Res2 = err; return; }
+    if (cl && !is_root && !cl->name[0]) name_dir(cl, a.fileid);
     fib_fill(fib, is_root ? g_volname
                           : (cl && cl->name[0] ? cl->name : "?"), &a, is_root);
     fib->fib_DiskKey = 0;              /* EXAMINE_NEXT starts at index 0 */
@@ -1850,7 +1905,8 @@ static void act_create_dir(struct DosPacket *pkt)
     {
         struct CLock *cl = lock_new(fh, fhlen, NF3DIR, a.fileid);
         if (!cl) { pkt->dp_Res1 = 0; pkt->dp_Res2 = ERROR_NO_FREE_STORE; return; }
-        leafname(BADDR(pkt->dp_Arg2), cl->name);
+        memcpy(cl->name, leaf, sizeof cl->name);
+        memcpy(cl->pfh, pfh, plen); cl->pfhlen = plen;
         pkt->dp_Res1 = MKBADDR(&cl->fl);
         pkt->dp_Res2 = 0;
     }
