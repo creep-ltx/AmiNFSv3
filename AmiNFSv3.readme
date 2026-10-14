@@ -31,9 +31,9 @@ FEATURES
     UTF-8, so accented names are right on both sides
 
   - Mount options for the volume name, identity (UID/GID), local
-    time zone, filename charset, transfer sizes, and request pipelining - the
-    defaults are safe on any machine from a plain 68000 up, the
-    options let a fast setup stretch its legs
+    time zone, filename charset, transfer sizes, and request
+    pipelining - the defaults are safe on any machine from a plain
+    68000 up, the options let a fast setup stretch its legs
 
   - Fast: on an A1200 with a PiStorm, 13-14 MB/s through c:Copy in
     both directions, and 65 MB/s reading through an application
