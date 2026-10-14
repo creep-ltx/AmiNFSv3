@@ -263,6 +263,18 @@
   10. HISTORY
   -----------
 
+  0.2b1  Fixed drawer names. Asked for the drawer above a lock
+       (ParentDir), the handler gave a lock without a name, so the
+       full name DOS builds from them (NameFromLock) read "?" for
+       every drawer above the last - moodbox:?/BBS Style - and a
+       file manager or file requester could not open the path it
+       got. Such a drawer is now named from its parent's listing; a
+       lock remembers the drawer it was found in, so the parent of a
+       file is that drawer, not the root; a lock taken as "a/b/" or
+       "/" is named after what it reached. Built with Bebbo's own
+       optimizer pass off (-fbbb=-): with it, the fix was compiled
+       away. Speed unchanged.
+
   0.1  First release. NFSv3 over TCP; read and write; UNSTABLE
        writes with COMMIT-on-close and verifier tracking; VOLUME,
        UID/GID, TZ, RSIZE/WSIZE, DEPTH mount options; pipelined
