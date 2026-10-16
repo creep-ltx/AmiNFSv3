@@ -3,16 +3,15 @@
 # comment atop nfs-handler.c). -fno-toplevel-reorder keeps aminfs_entry
 # first in the text hunk, which is what makes it the entry point.
 
-# Toolchain: m68k-amigaos-gcc on PATH, else Bebbo's default location,
-# else ApolloCrossDev's. Override with  make CC=/path/to/gcc
+# Toolchain: m68k-amigaos-gcc on PATH, else under AMIGA.
+# Bebbo's m68k-amigaos-gcc: set AMIGA to where it is installed, otherwise it is
+# looked for in the usual places (/opt/amiga, its own default, then ~/opt/amiga).
+# Or override the compiler itself with  make CC=/path/to/gcc
+AMIGA   ?= $(firstword $(wildcard /opt/amiga $(HOME)/opt/amiga))
 ifeq ($(origin CC),default)
   CC := $(shell command -v m68k-amigaos-gcc 2>/dev/null)
   ifeq ($(CC),)
-    ifneq ($(wildcard $(HOME)/opt/amiga/bin/m68k-amigaos-gcc),)
-      CC := $(HOME)/opt/amiga/bin/m68k-amigaos-gcc
-    else
-      CC := $(HOME)/ApolloCrossDev/Compilers/GCC-6.50-Dev/bin/m68k-amigaos-gcc
-    endif
+    CC := $(AMIGA)/bin/m68k-amigaos-gcc
   endif
 endif
 # -fbbb=-: Bebbo's own optimizer pass off. With it, 0.2b1's name_dir
@@ -35,8 +34,13 @@ NFSDismount: NFSDismount.c
 	$(CC) -O2 -noixemul -Wall -Wno-pointer-sign NFSDismount.c -o NFSDismount
 
 # Protocol harness against the live Linux nfsd (no Amiga in the loop).
+# Use the server's LAN address and a scratch export:
+#   make test NFS_SERVER=192.168.1.10 NFS_EXPORT=/srv/nfs-share
+NFS_SERVER ?=
+NFS_EXPORT ?=
 test:
-	python3 tests/nfswire.py selftest 192.168.68.117 /home/creep/nfs-share
+	@test -n "$(NFS_SERVER)" -a -n "$(NFS_EXPORT)" || { echo "Set NFS_SERVER and NFS_EXPORT: make test NFS_SERVER=192.168.1.10 NFS_EXPORT=/srv/nfs-share"; exit 1; }
+	python3 tests/nfswire.py selftest $(NFS_SERVER) $(NFS_EXPORT)
 
 # Native unit test of the charset converters (no Amiga toolchain needed).
 check:

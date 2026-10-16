@@ -1629,7 +1629,7 @@ static void act_parent(struct DosPacket *pkt)
 /* A drawer reached by ParentDir or "/" (LOOKUP of "..") has a handle but
  * no name, and NameFromLock builds paths from Examine's names: found in
  * its parent's listing by its file id. (Without it every drawer above the
- * last read "?": moodbox:?/BBS Style, 0.1.) */
+ * last read "?": Work:?/BBS Style, 0.1.) */
 static void name_dir(struct CLock *cl, ULONG fileid)
 {
     UBYTE gfh[FHSIZE_MAX]; ULONG glen; struct Attr ga;

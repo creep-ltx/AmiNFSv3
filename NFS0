@@ -6,7 +6,7 @@ Handler    = L:nfs-handler
 StackSize  = 16384
 Priority   = 5
 GlobVec    = -1
-Startup    = "192.168.68.117:/home/creep/Amiga VOLUME=moodbox TZ=+2 RSIZE=65536 WSIZE=16384 DEPTH=8"
+Startup    = "192.168.1.10:/srv/amiga VOLUME=Linux TZ=+2 RSIZE=65536 WSIZE=16384 DEPTH=8"
 
 /* Startup is "host:/export/path [options]"; host is a dotted quad.
  * Options: VOLUME=name  Workbench/volume name (default: export leaf)

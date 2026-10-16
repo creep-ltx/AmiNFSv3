@@ -288,7 +288,7 @@
   0.2b1  Fixed drawer names. Asked for the drawer above a lock
        (ParentDir), the handler gave a lock without a name, so the
        full name DOS builds from them (NameFromLock) read "?" for
-       every drawer above the last - moodbox:?/BBS Style - and a
+       every drawer above the last - Work:?/BBS Style - and a
        file manager or file requester could not open the path it
        got. Such a drawer is now named from its parent's listing; a
        lock remembers the drawer it was found in, so the parent of a

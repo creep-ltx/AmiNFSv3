@@ -65,7 +65,7 @@ HISTORY
          UTF-8 (CHARSET= option). Contributed by Renaud
          Schweingruber (github.com/TuKo1982).
   0.2b1  Fixed: a few drawers deep, programs showed paths like
-         moodbox:?/BBS Style and then could not read them (every
+         Work:?/BBS Style and then could not read them (every
          drawer above the last was named "?"). The parent of a file
          is now its own drawer, not the volume's root.
   0.1    First release.

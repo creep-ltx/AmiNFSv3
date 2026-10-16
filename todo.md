@@ -17,14 +17,14 @@ proven bsdsocket recipe.
 
 ## Milestones
 
-- M1: Linux side. nfsd export of ~/nfs-share + Python wire prototype
+- M1: Linux side. nfsd export of a scratch share + Python wire prototype
   (tests/nfswire.py) = reference implementation + permanent protocol
   harness. CLOSED 14.8.26 — selftest ALL GREEN against live nfsd
-  (`nfswire.py selftest 192.168.68.117 /home/creep/nfs-share`):
+  (`nfswire.py selftest <the PC's LAN address> <the scratch share>`):
   READDIRPLUS tree walk, 2MB pattern read verified byte-for-byte,
   CREATE/WRITE/readback/RENAME/REMOVE/RMDIR cycle clean.
   NOTE: always test via the LAN address, never localhost — the export
-  is scoped to 192.168.68.0/24 and 127.0.0.1 gets NFS3ERR_ACCES.
+  is scoped to the LAN (192.168.1.0/24 here as an example) and 127.0.0.1 gets NFS3ERR_ACCES.
   Same source-address view the Amiga has.
 - M2: read-only handler. LOOKUP/GETATTR/READDIRPLUS/READ mapped to
   ACTION_LOCATE_OBJECT/EXAMINE/EXAMINE_NEXT/FINDINPUT/READ/SEEK +
@@ -108,7 +108,7 @@ First boot chapter, all RAM:-staged (zero persistence, reboot cleans):
   plain CLI process; bsdsocket.library 4.103 = Emu68 lwIP.)
 - SOLVED: ufw. INPUT policy drop, ufw-user-input EMPTY, established
   flows pass via conntrack (why wasabi always worked). His rule:
-  `ufw allow from 192.168.68.0/24 to any port 111,2049,20048 proto tcp`.
+  `ufw allow from 192.168.1.0/24 to any port 111,2049,20048 proto tcp`.
   (`command -v ufw` had lied earlier - /usr/sbin not in sandbox PATH.)
 
 ## FIRST LIGHT 14.8.26 - b6 GREEN ON REAL A1200
@@ -153,13 +153,13 @@ Known rough edges for b7+:
   from DEVS:DOSDrivers at boot. Volume name routes only after first
   DEVICE access (handler must run to add the volume node).
 - INSTALLED on his A1200 (additive, boot untouched): L:nfs-handler,
-  C:NFSDismount, SYS:Storage/DOSDrivers/NFS0 (moodbox = ~/Amiga on
-  192.168.68.117) + NFS1 (NAS = Synology 192.168.68.118
-  /volume1/homes/creep UID=1026 GID=100) + PC0-copied icons.
+  C:NFSDismount, SYS:Storage/DOSDrivers/NFS0 (Work = a folder on
+  the PC) + NFS1 (NAS = the Synology's home share,
+  UID=1026 GID=100) + PC0-copied icons.
   He drags to DEVS:DOSDrivers when he wants boot automount.
 - NAS: GREEN end to end - Synology accepted the Amiga's MNT directly
   (mountd port 892 via portmap, no DSM changes), NAS: volume lists his
-  real home share on the A1200. moodbox share awaits his exports line.
+  real home share on the A1200. The PC's share awaits his exports line.
 
 ## b15 (14.8.26): RSIZE=/WSIZE= + the 68000 question answered
 
@@ -220,8 +220,8 @@ SMALL chunks + DEEP pipeline = streaming: W16K x D8 ~13 MB/s writes
 apart); W32K x D8 mid; W64K + depth = the known lwIP poison. Reads
 plateau ~12-14 regardless (read requests are tiny; RSIZE 32-128K all
 fine). SHIPPED both DOSDrivers: RSIZE=65536 WSIZE=16384 DEPTH=8.
-Real-file finale: 22MB moodbox READ 14.2 / WRITE 13.1 MB/s (runs
-within 0.08s of each other); moodbox->NAS cross-copy through the
+Real-file finale: 22MB PC-share READ 14.2 / WRITE 13.1 MB/s (runs
+within 0.08s of each other); PC-share->NAS cross-copy through the
 Amiga 6.6 MB/s combined, cmp-verified on the Synology.
 Day's write path: 0.17 -> 13.1 MB/s = 77x. Remaining gap to raw
 wasabid (41+) = per-RPC turnaround at 16K granularity; good enough,
@@ -266,8 +266,8 @@ The numbers (final b19, RSIZE=64K WSIZE=16K DEPTH=8):
 
 ## 0.2b1 (14.10.2026): drawers above the last read "?" - fixed
 
-Reported by him from Ahiru on moodbox: and NAS:: a few drawers deep,
-"cannot read" under a path `moodbox:?/BBS Style`. Cause, proven with a
+Reported by him from Ahiru on the PC's share and NAS:: a few drawers deep,
+"cannot read" under a path `Work:?/BBS Style`. Cause, proven with a
 probe (Lock, NameFromLock, ParentDir+Examine on each level):
 - ACTION_PARENT made its lock from LOOKUP "..", which gives a handle and
   no name; EXAMINE then said "?". NameFromLock builds every path from
@@ -275,7 +275,7 @@ probe (Lock, NameFromLock, ParentDir+Examine on each level):
   program (Ahiru, csh's pwd, ASL...). 0.1's oldest bug, unseen until a
   program re-opened a path NameFromLock had built.
 - the parent of a FILE lock punted to the root (so NameFromLock of a
-  file 3 deep read "moodbox:file").
+  file 3 deep read "Work:file").
 - LOCATE named a lock from the typed text's leaf: "a/b/" or "/" named
   it "" ("?") too.
 Fix: a lock keeps the drawer it was found in (pfh); resolve() names a
@@ -292,7 +292,7 @@ re-checked (no 020 opcodes in the disassembly).
 INSTALLED on the A1200 the same day (he allowed it): Ahiru quit,
 NFSDismount NFS9:/NFS0:/NFS1:, L:nfs-handler replaced (0.1b20 kept as
 L:nfs-handler-0.1b20.bak), devices touched (List NFS0:/NFS1:) -> volumes
-back. Then in his CTerm: Ahiru walked moodbox:BBS/BBS Style/artcore!/
+back. Then in his CTerm: Ahiru walked Work:BBS/BBS Style/artcore!/
 amiga and opened 001..TXT; NAS:Pictures/Wallpapers/Tech named right.
 Released 0.2b1: GitHub pre-release v0.2b1 and Aminet (AmiNFSv3.lha + .readme uploaded to new/, 14.10.2026).
 
@@ -312,4 +312,4 @@ lower-case name (ärlig -> Ärlig), RÄKSMÖRGÅS.TXT finds Räksmörgås.txt;
 the € in a server name lists as '?'. NFS1: (Synology) still lists.
 Server side shows proper UTF-8. Installed as L:nfs-handler
 (L:nfs-handler-0.2b1.bak kept).
-Released 0.2b2: GitHub pre-release v0.2b2 (AmiNFSv3.lha packed with LhA 2.15 on the A1200, staging + notes in ~/Documents/Releases/AmiNFSv3/0.2b2), 14.10.2026. Uploaded to Aminet the same day (AmiNFSv3.lha + .readme, Version 0.2b2, to new/, both 226).
+Released 0.2b2: GitHub pre-release v0.2b2 (AmiNFSv3.lha packed with LhA 2.15 on the A1200, staging + notes in the release staging folder), 14.10.2026. Uploaded to Aminet the same day (AmiNFSv3.lha + .readme, Version 0.2b2, to new/, both 226).
