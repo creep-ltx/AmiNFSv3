@@ -1,4 +1,4 @@
-                    AmiNFSv3 0.2b2 - documentation
+                    AmiNFSv3 0.2b3 - documentation
                     ============================
 
   An NFSv3 client filesystem for AmigaOS 2.0+. Mounts a directory
@@ -276,6 +276,16 @@
 
   10. HISTORY
   -----------
+
+  0.2b3  Assigns into an NFS drawer. A path such as LIBS:x.library
+       or DEVS:x.device, where LIBS:/DEVS: points into a drawer on
+       the server (also as an ADD to a multi-assign), was looked up
+       from the export's root and not found; it now starts in the
+       assign's drawer. The host in Startup may be a hostname,
+       resolved by the TCP stack (hosts file or DNS). Open files
+       answer the 2.0 file-handle packets (NameFromFH,
+       DupLockFromFH, ParentOfFH, OpenFromLock). Hostnames and the
+       assign rule from Harald Kueller (github.com/hkueller).
 
   0.2b2  Accented filenames. Names are converted between the
        Amiga's Latin-1 and the server's UTF-8, so accented names

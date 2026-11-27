@@ -44,7 +44,7 @@ struct Library *SocketBase;
 LONG handler_main(void);
 
 static const char verstag[] __attribute__((used)) =
-    "$VER: nfs-handler 0.2b2 (14.10.2026)";
+    "$VER: nfs-handler 0.2b3 (27.11.2026)";
 
 /* ------------------------------------------------------------------ */
 /* mini libc (we link with -nostdlib; gcc also emits calls to these)  */
@@ -298,6 +298,8 @@ struct CFile {
     LONG   lost;                       /* verifier changed mid-file */
     UBYTE  wverf[8];
     char   name[NAME_MAX_AMIGA + 1];
+    ULONG  pfhlen;                     /* the drawer it was opened in (0 = not known): */
+    UBYTE  pfh[FHSIZE_MAX];            /* ParentOfFH / DupLockFromFH name the file by it */
 };
 
 struct Attr {                          /* decoded fattr3, 32-bit view */
@@ -1484,10 +1486,21 @@ static LONG resolve(struct CLock *base, UBYTE *bstr,
     for (i = 0; i < len && o < 255; i++) path[o++] = bstr[1 + i];
     path[o] = 0;
 
-    /* device prefix: everything before ':' names us; discard */
+    /* "NAME:" prefix. DOS sends it whole, with the lock it resolved NAME
+     * to: none for our volume or device name (start at the root), but an
+     * assign's own drawer lock for "DEVS:x" when DEVS: points into us -
+     * then we start THERE. Always jumping to the root made every assign
+     * into one of our subdirectories find nothing (GitHub #1; the rule
+     * from hkueller's PR #3). ":x" is the root of the lock's volume. */
+    o = 0;
     for (i = 0; path[i]; i++)
-        if (path[i] == ':') { from_root = 1; o = i + 1; break; }
-    if (!from_root) o = 0;
+        if (path[i] == ':') { o = i + 1; break; }
+    if (o) {
+        from_root = 1;
+        if (base && i > 0 &&
+            !names_equal_nocase(path, i, g_volname, c_strlen(g_volname)))
+            from_root = 0;
+    }
 
     if (from_root || !base) { fh = g_rootfh; fhlen = g_rootfhlen; ftype = NF3DIR; }
     else lock_fh(base, &fh, &fhlen, &ftype);
@@ -1750,18 +1763,28 @@ static void act_examine_next(struct DosPacket *pkt)
     }
 }
 
-static void open_tail(struct DosPacket *pkt, struct FileHandle *fhandle,
-                      const UBYTE *fh, ULONG fhlen, ULONG size, UBYTE *namebstr)
+static struct CFile *cfile_new(const UBYTE *fh, ULONG fhlen, ULONG size,
+                               const UBYTE *pfh, ULONG pfhlen)
 {
     struct CFile *cf = AllocVec(sizeof(*cf), MEMF_PUBLIC | MEMF_CLEAR);
-    if (!cf) { pkt->dp_Res1 = DOSFALSE; pkt->dp_Res2 = ERROR_NO_FREE_STORE; return; }
+    if (!cf) return NULL;
     memcpy(cf->fh, fh, fhlen);
     cf->fhlen = fhlen;
     cf->size = size;
-    leafname(namebstr, cf->name);
+    if (pfhlen) { memcpy(cf->pfh, pfh, pfhlen); cf->pfhlen = pfhlen; }
     cf->next = g_files;
     g_files = cf;
     g_nfiles++;
+    return cf;
+}
+
+static void open_tail(struct DosPacket *pkt, struct FileHandle *fhandle,
+                      const UBYTE *fh, ULONG fhlen, ULONG size, UBYTE *namebstr,
+                      const UBYTE *pfh, ULONG pfhlen)
+{
+    struct CFile *cf = cfile_new(fh, fhlen, size, pfh, pfhlen);
+    if (!cf) { pkt->dp_Res1 = DOSFALSE; pkt->dp_Res2 = ERROR_NO_FREE_STORE; return; }
+    leafname(namebstr, cf->name);
     fhandle->fh_Arg1 = (LONG)cf;
     fhandle->fh_Type = g_port;
     pkt->dp_Res1 = DOSTRUE;
@@ -1779,7 +1802,7 @@ static void act_findinput(struct DosPacket *pkt)
         err = resolve(base, BADDR(pkt->dp_Arg3), fh, &fhlen, &a, 0, NULL);
     if (!err && a.ftype == NF3DIR) err = ERROR_OBJECT_WRONG_TYPE;
     if (err) { pkt->dp_Res1 = DOSFALSE; pkt->dp_Res2 = err; return; }
-    open_tail(pkt, fhandle, fh, fhlen, a.size, BADDR(pkt->dp_Arg3));
+    open_tail(pkt, fhandle, fh, fhlen, a.size, BADDR(pkt->dp_Arg3), g_rpfh, g_rpfhlen);
 }
 
 /* FINDOUTPUT = MODE_NEWFILE: create-or-truncate */
@@ -1797,7 +1820,7 @@ static void act_findoutput(struct DosPacket *pkt)
     if (!err)
         err = nfs_make(NFS3_CREATE, pfh, plen, leaf, 0644, 1, fh, &fhlen, &a);
     if (err) { pkt->dp_Res1 = DOSFALSE; pkt->dp_Res2 = err; return; }
-    open_tail(pkt, fhandle, fh, fhlen, 0, BADDR(pkt->dp_Arg3));
+    open_tail(pkt, fhandle, fh, fhlen, 0, BADDR(pkt->dp_Arg3), pfh, plen);
 }
 
 /* FINDUPDATE = MODE_READWRITE: open existing, create if absent */
@@ -1820,7 +1843,7 @@ static void act_findupdate(struct DosPacket *pkt)
             err = ERROR_OBJECT_WRONG_TYPE;
     }
     if (err) { pkt->dp_Res1 = DOSFALSE; pkt->dp_Res2 = err; return; }
-    open_tail(pkt, fhandle, fh, fhlen, a.size, BADDR(pkt->dp_Arg3));
+    open_tail(pkt, fhandle, fh, fhlen, a.size, BADDR(pkt->dp_Arg3), pfh, plen);
 }
 
 static void act_end(struct DosPacket *pkt)
@@ -2076,6 +2099,76 @@ static void act_set_file_size(struct DosPacket *pkt)
     pkt->dp_Res2 = 0;
 }
 
+/* ---- 2.0 packets on file handles (0.2b3; hkueller's PR #3 asked for
+ * them - ADF tools and NameFromFH use them). An open file keeps the
+ * drawer it was opened in (cf->pfh), as a lock does, so its parent is
+ * known without LOOKUP of ".." on a file, which NFS does not have. */
+
+/* DupLockFromFH(): a shared lock on the open file, independent of it */
+static void act_copy_dir_fh(struct DosPacket *pkt)
+{
+    struct CFile *cf = (struct CFile *)pkt->dp_Arg1;
+    struct CLock *nc;
+    struct Attr a;
+    LONG err = net_up();
+
+    if (!err && !cf) err = ERROR_OBJECT_NOT_FOUND;
+    if (!err) err = nfs_getattr(cf->fh, cf->fhlen, &a);
+    if (err) { pkt->dp_Res1 = 0; pkt->dp_Res2 = err; return; }
+    nc = lock_new(cf->fh, cf->fhlen, a.ftype, a.fileid);
+    if (!nc) { pkt->dp_Res1 = 0; pkt->dp_Res2 = ERROR_NO_FREE_STORE; return; }
+    memcpy(nc->name, cf->name, sizeof nc->name);
+    if (cf->pfhlen) { memcpy(nc->pfh, cf->pfh, cf->pfhlen); nc->pfhlen = cf->pfhlen; }
+    pkt->dp_Res1 = MKBADDR(&nc->fl);
+    pkt->dp_Res2 = 0;
+}
+
+/* ParentOfFH(): a shared lock on the drawer the file was opened in. Its
+ * name is found on EXAMINE by file id (name_dir), as for ParentDir(). */
+static void act_parent_fh(struct DosPacket *pkt)
+{
+    struct CFile *cf = (struct CFile *)pkt->dp_Arg1;
+    const UBYTE *dfh = g_rootfh; ULONG dlen = g_rootfhlen;
+    struct CLock *nc;
+    struct Attr a;
+    LONG err = net_up();
+
+    if (!err && !cf) err = ERROR_OBJECT_NOT_FOUND;
+    if (!err) {
+        if (cf->pfhlen) { dfh = cf->pfh; dlen = cf->pfhlen; }
+        err = nfs_getattr(dfh, dlen, &a);
+    }
+    if (err) { pkt->dp_Res1 = 0; pkt->dp_Res2 = err; return; }
+    nc = lock_new(dfh, dlen, NF3DIR, a.fileid);
+    if (!nc) { pkt->dp_Res1 = 0; pkt->dp_Res2 = ERROR_NO_FREE_STORE; return; }
+    pkt->dp_Res1 = MKBADDR(&nc->fl);
+    pkt->dp_Res2 = 0;
+}
+
+/* OpenFromLock(): dp_Arg1 = the FileHandle to fill, dp_Arg2 = a lock on
+ * a file. On success the lock belongs to the file handle: freed here. */
+static void act_fh_from_lock(struct DosPacket *pkt)
+{
+    struct FileHandle *fhandle = BADDR(pkt->dp_Arg1);
+    struct CLock *cl = lock_of(pkt->dp_Arg2);
+    struct CFile *cf;
+    struct Attr a;
+    LONG err = net_up();
+
+    if (!err && !cl) err = ERROR_OBJECT_NOT_FOUND;
+    if (!err && cl->ftype == NF3DIR) err = ERROR_OBJECT_WRONG_TYPE;
+    if (!err) err = nfs_getattr(cl->fh, cl->fhlen, &a);
+    if (err) { pkt->dp_Res1 = DOSFALSE; pkt->dp_Res2 = err; return; }
+    cf = cfile_new(cl->fh, cl->fhlen, a.size, cl->pfh, cl->pfhlen);
+    if (!cf) { pkt->dp_Res1 = DOSFALSE; pkt->dp_Res2 = ERROR_NO_FREE_STORE; return; }
+    memcpy(cf->name, cl->name, sizeof cf->name);
+    lock_free(cl);
+    fhandle->fh_Arg1 = (LONG)cf;
+    fhandle->fh_Type = g_port;
+    pkt->dp_Res1 = DOSTRUE;
+    pkt->dp_Res2 = 0;
+}
+
 static void act_examine_fh(struct DosPacket *pkt)
 {
     struct CFile *cf = (struct CFile *)pkt->dp_Arg1;
@@ -2305,6 +2398,9 @@ LONG handler_main(void)
             case ACTION_SET_DATE:       act_set_date(pkt); break;
             case ACTION_SET_FILE_SIZE:  act_set_file_size(pkt); break;
             case ACTION_EXAMINE_FH:     act_examine_fh(pkt); break;
+            case ACTION_COPY_DIR_FH:    act_copy_dir_fh(pkt); break;
+            case ACTION_PARENT_FH:      act_parent_fh(pkt); break;
+            case ACTION_FH_FROM_LOCK:   act_fh_from_lock(pkt); break;
             case ACTION_END:            act_end(pkt); break;
             case ACTION_READ:           act_read(pkt); break;
             case ACTION_SEEK:           act_seek(pkt); break;

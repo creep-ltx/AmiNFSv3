@@ -313,3 +313,25 @@ the € in a server name lists as '?'. NFS1: (Synology) still lists.
 Server side shows proper UTF-8. Installed as L:nfs-handler
 (L:nfs-handler-0.2b1.bak kept).
 Released 0.2b2: GitHub pre-release v0.2b2 (AmiNFSv3.lha packed with LhA 2.15 on the A1200, staging + notes in the release staging folder), 14.10.2026. Uploaded to Aminet the same day (AmiNFSv3.lha + .readme, Version 0.2b2, to new/, both 226).
+
+## 0.2b3 (27.11.2026): assigns into NFS drawers, hostnames, FH packets
+
+GitHub issue #1 + PRs #3/#4 (hkueller). resolve() jumped to the root
+for every "NAME:" prefix, but DOS sends an assign's path whole WITH the
+assign's drawer lock (LIBS:x with LIBS: -> nfs:a/Libs). Now: prefix +
+lock + NAME not our volume name -> start at the lock; ":x", no lock or
+our own volume -> root. PR #4 (hostname via gethostbyname) cherry-picked
+with his authorship. PR #3's path-string machinery not taken (0.2b1's
+pfh/name_dir already names parents); its three packets redone on pfh:
+CFile keeps the drawer it was opened in -> COPY_DIR_FH, PARENT_FH,
+FH_FROM_LOCK. His ADF/DAControl problem does not reproduce on 0.2b2
+(read-only and writable ADF from NFS both mount; 0.2b1 fixed it).
+Note: Type/Open through a multi-assign whose FIRST entry lacks the file
+fails on stock FFS too (DOS's Open does not walk multi-assigns) - not ours.
+Verified in FS-UAE, Workbench 3.2.1 and 3.1, against the PC's export:
+before/after on 0.2b2 vs 0.2b3 - library via LIBS: ADD (fail -> ok),
+XL:Catalogs/c.txt through an assign (fail -> ok), CD through assign,
+":x", "/x" relative paths; fhtest (NameFromFH/DupLockFromFH/ParentOfFH/
+OpenFromLock: 209 -> all ok); hostname 192.168.68.114.nip.io mounts,
+a bad name fails cleanly; 2 MB copy both ways md5-identical, accents,
+rename, delete. Not yet on the real A1200.
